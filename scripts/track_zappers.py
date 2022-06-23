@@ -1,5 +1,5 @@
 from web3._utils.events import construct_event_topic_set
-from brownie import YearnPartnerTracker, web3
+from brownie import YearnPartnerTracker, web3, chain, interface
 import time
 
 partner_tracker = YearnPartnerTracker.at('0x8ee392a4787397126C163Cb9844d7c447da419D8')
@@ -21,13 +21,36 @@ def main():
     print("time taken: ", lapse)
 
     referrals = [ctroller.events.ReferredBalanceIncreased().processLog(x) for x in logs]
-    partners = {}
+    partners = []
+    depositers = []
+    
     for log in referrals:
         partId = log["args"]["partnerId"]
-        if partners.get(partId):
-            partners.partId.amount += log["args"]["amountAdded"]
-        else:
-           partners.partId.amount = log["args"]["amountAdded"]
+        if partId not in partners:
+            partners.append(partId)
 
-    print(partners)
+        vault = log["args"]["vault"]
+        depositer = log["args"]["depositer"]
 
+        if depositer not in depositers:
+            depositers.append(depositer)
+
+        txhash = log["transactionHash"]
+        
+        #we are looking for transfer events of the vault in the same tx
+        transfer_event_hash = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+        transaction_logs = chain.get_transaction(txhash).logs
+        last_transfer = {}# we only care about the last transfer of vault tokens in the log, where do they end up?
+
+        for logs in transaction_logs:
+
+            if (logs["topics"][0]).hex() == transfer_event_hash and logs["address"] == vault:
+                print("transfer_found")
+                last_transfer = logs
+        
+        destination = (last_transfer["topics"][2]).hex() #where to tokens are transfered to
+
+        
+
+    print("partners: ", partners)
+    print("depositers: ", depositers)
